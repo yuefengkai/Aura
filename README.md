@@ -3,7 +3,7 @@
 Aura is a simple weather widget that runs on ESP32-2432S028R ILI9341 devices with a 2.8" screen. These devices are sometimes called a "CYD" or Cheap Yellow Display.
 
 This is just the source code for the project. This project includes a case design and assembly instructions. The complete instructions are available
-here: https://makerworld.com/en/@surrey_homeware
+here: https://makerworld.com/en/models/1382304-aura-smart-weather-forecast-display
 
 ### License
 
