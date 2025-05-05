@@ -2,12 +2,12 @@
 #include <WiFiManager.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <time.h>
 #include <lvgl.h>
 #include <TFT_eSPI.h>
 #include <XPT2046_Touchscreen.h>
 #include <Preferences.h>
 #include "esp_system.h"
-
 
 #define XPT2046_IRQ 36   // T_IRQ
 #define XPT2046_MOSI 32  // T_DIN
@@ -65,6 +65,7 @@ static lv_obj_t *kb;
 static lv_obj_t *settings_win;
 static lv_obj_t *location_win = nullptr;
 static lv_obj_t *unit_switch;
+static lv_obj_t *lbl_clock;
 
 // Weather icons
 LV_IMG_DECLARE(icon_blizzard);
@@ -168,6 +169,21 @@ String urlencode(const String &str) {
   return encoded;
 }
 
+static void update_clock(lv_timer_t *timer) {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) return;
+
+  char buf[16];
+  int hour = timeinfo.tm_hour % 12;
+  int minute = timeinfo.tm_min;
+  const char *ampm = (timeinfo.tm_hour < 12) ? "am" : "pm";
+
+  if(hour == 0) hour = 12;
+  snprintf(buf, sizeof(buf), "%d:%02d%s", hour, minute, ampm);
+
+  lv_label_set_text(lbl_clock, buf);
+}
+
 static void ta_event_cb(lv_event_t *e) {
   lv_obj_t *ta = (lv_obj_t *)lv_event_get_target(e);
   lv_obj_t *kb = (lv_obj_t *)lv_event_get_user_data(e);
@@ -245,6 +261,8 @@ void setup() {
   WiFiManager wm;
   wm.setAPCallback(apModeCallback);
   wm.autoConnect(DEFAULT_CAPTIVE_SSID);
+
+  lv_timer_create(update_clock, 1000, NULL);
 
   lv_obj_clean(lv_scr_act());
   create_ui();
@@ -326,14 +344,14 @@ void create_ui() {
   lbl_today_temp = lv_label_create(scr);
   lv_label_set_text(lbl_today_temp, "--°C");
   lv_obj_set_style_text_font(lbl_today_temp, &lv_font_montserrat_42, LV_PART_MAIN | LV_STATE_DEFAULT);
-  lv_obj_align(lbl_today_temp, LV_ALIGN_TOP_MID, 45, 20);
+  lv_obj_align(lbl_today_temp, LV_ALIGN_TOP_MID, 45, 25);
   lv_obj_add_style(lbl_today_temp, &default_label_style, LV_PART_MAIN | LV_STATE_DEFAULT);
 
   lbl_today_feels_like = lv_label_create(scr);
   lv_label_set_text(lbl_today_feels_like, "Feels Like --°C");
   lv_obj_set_style_text_font(lbl_today_feels_like, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_style_text_color(lbl_today_feels_like, lv_color_hex(0xe4ffff), LV_PART_MAIN | LV_STATE_DEFAULT);
-  lv_obj_align(lbl_today_feels_like, LV_ALIGN_TOP_MID, 45, 70);
+  lv_obj_align(lbl_today_feels_like, LV_ALIGN_TOP_MID, 45, 75);
 
   lbl_forecast = lv_label_create(scr);
   lv_label_set_text(lbl_forecast, "SEVEN DAY FORECAST");
@@ -414,6 +432,13 @@ void create_ui() {
   }
 
   lv_obj_add_flag(box_hourly, LV_OBJ_FLAG_HIDDEN);
+
+  // Create clock label in the top-right corner
+  lbl_clock = lv_label_create(scr);
+  lv_obj_set_style_text_font(lbl_clock, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_text_color(lbl_clock, lv_color_hex(0xb9ecff), LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_label_set_text(lbl_clock, "");
+  lv_obj_align(lbl_clock, LV_ALIGN_TOP_RIGHT, -10, 5);
 }
 
 void populate_results_dropdown() {
@@ -441,7 +466,6 @@ void populate_results_dropdown() {
 static void location_save_event_cb(lv_event_t *e) {
   JsonArray *pres = static_cast<JsonArray *>(lv_event_get_user_data(e));
   uint16_t idx = lv_dropdown_get_selected(results_dd);
-  Serial.println(idx);
 
   JsonObject obj = (*pres)[idx];
   double lat = obj["latitude"].as<double>();
@@ -749,6 +773,8 @@ void fetch_and_update_weather() {
   http.begin(url);
 
   if (http.GET() == HTTP_CODE_OK) {
+    Serial.println("Updated weather from open-meteo: " + url);
+
     String payload = http.getString();
     DynamicJsonDocument doc(32 * 1024);
 
@@ -762,6 +788,11 @@ void fetch_and_update_weather() {
         t_now = t_now * 9.0 / 5.0 + 32.0;
         t_ap = t_ap * 9.0 / 5.0 + 32.0;
       }
+
+      int utc_offset_seconds = doc["utc_offset_seconds"].as<int>();
+      configTime(utc_offset_seconds, 0, "pool.ntp.org", "time.nist.gov");
+      Serial.print("Updating time from NTP with UTC offset: ");
+      Serial.println(utc_offset_seconds);
 
       char unit = use_fahrenheit ? 'F' : 'C';
       lv_label_set_text_fmt(lbl_today_temp, "%.0f°%c", t_now, unit);
@@ -936,8 +967,6 @@ const lv_img_dsc_t* choose_image(int code, int is_day) {
 }
 
 const lv_img_dsc_t* choose_icon(int code, int is_day) {
-  Serial.print(code);
-
   switch (code) {
     // Clear sky
     case  0:
