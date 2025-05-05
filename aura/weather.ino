@@ -289,11 +289,14 @@ void wifi_splash_screen() {
   lv_label_set_text(lbl,
                     "Wi-Fi Configuration:\n\n"
                     "Please connect your\n"
-                    "phone or laptop to\n" DEFAULT_CAPTIVE_SSID
+                    "phone or laptop to the\n" 
+                    "temporary Wi-Fi access\n point "
+                    DEFAULT_CAPTIVE_SSID
                     "\n"
                     "to configure.\n\n"
                     "If you don't see a \n"
-                    "configuration screen,\n"
+                    "configuration screen \n"
+                    "after connecting,\n"
                     "visit http://192.168.4.1\n"
                     "in your web browser.");
   lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
