@@ -849,7 +849,7 @@ void fetch_and_update_weather() {
         lv_label_set_text_fmt(lbl_daily_day[i], "%s", dayStr);
         lv_label_set_text_fmt(lbl_daily_high[i], "%.0f°%c", mx, unit);
         lv_label_set_text_fmt(lbl_daily_low[i], "%.0f°%c", mn, unit);
-        lv_img_set_src(img_daily[i], choose_icon(weather_codes[i].as<int>(), is_day));
+        lv_img_set_src(img_daily[i], choose_icon(weather_codes[i].as<int>(), (i == 0) ? is_day : 1));
       }
 
       JsonArray hours = doc["hourly"]["time"].as<JsonArray>();
