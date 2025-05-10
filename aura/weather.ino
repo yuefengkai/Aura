@@ -792,7 +792,7 @@ void fetch_and_update_weather() {
                + latitude + "&longitude=" + longitude
                + "&current=temperature_2m,apparent_temperature,is_day,weather_code"
                + "&daily=temperature_2m_min,temperature_2m_max,weather_code"
-               + "&hourly=temperature_2m,precipitation_probability,weather_code"
+               + "&hourly=temperature_2m,precipitation_probability,is_day,weather_code"
                + "&forecast_hours=7"
                + "&timezone=auto";
 
@@ -856,6 +856,7 @@ void fetch_and_update_weather() {
       JsonArray hourly_temps = doc["hourly"]["temperature_2m"].as<JsonArray>();
       JsonArray precipitation_probabilities = doc["hourly"]["precipitation_probability"].as<JsonArray>();
       JsonArray hourly_weather_codes = doc["hourly"]["weather_code"].as<JsonArray>();
+      JsonArray hourly_is_day = doc["hourly"]["is_day"].as<JsonArray>();
 
       for (int i = 0; i < 7; i++) {
         const char *date = hours[i];  // "YYYY-MM-DD"
@@ -876,7 +877,7 @@ void fetch_and_update_weather() {
         }
         lv_label_set_text_fmt(lbl_precipitation_probability[i], "%.0f%%", precipitation_probability);
         lv_label_set_text_fmt(lbl_hourly_temp[i], "%.0f°%c", temp, unit);
-        lv_img_set_src(img_hourly[i], choose_icon(hourly_weather_codes[i].as<int>(), is_day));
+        lv_img_set_src(img_hourly[i], choose_icon(hourly_weather_codes[i].as<int>(), hourly_is_day[i].as<int>()));
       }
 
 
