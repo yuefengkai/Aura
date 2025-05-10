@@ -34,6 +34,7 @@ int x, y, z;
 // Preferences
 static Preferences prefs;
 static bool use_fahrenheit = false;
+static bool use_24_hour = false; // Add this global variable
 static char latitude[16] = LATITUDE_DEFAULT;
 static char longitude[16] = LONGITUDE_DEFAULT;
 static String location = String(LOCATION_DEFAULT);
@@ -65,6 +66,7 @@ static lv_obj_t *kb;
 static lv_obj_t *settings_win;
 static lv_obj_t *location_win = nullptr;
 static lv_obj_t *unit_switch;
+static lv_obj_t *clock_24hr_switch;
 static lv_obj_t *lbl_clock;
 
 // Weather icons
@@ -141,15 +143,22 @@ int day_of_week(int y, int m, int d) {
 String hour_of_day(int hour) {
   if(hour < 0 || hour > 23) return String("Invalid hour");
 
-  if(hour == 0)   return String("12am");
-  if(hour == 12)  return String("Noon");
+  if (use_24_hour) {
+    if (hour < 10)
+      return String("0") + String(hour);
+    else
+      return String(hour);
+  } else {
+    if(hour == 0)   return String("12am");
+    if(hour == 12)  return String("Noon");
 
-  bool isMorning = (hour < 12);
-  String suffix = isMorning ? "am" : "pm";
+    bool isMorning = (hour < 12);
+    String suffix = isMorning ? "am" : "pm";
 
-  int displayHour = hour % 12;
+    int displayHour = hour % 12;
 
-  return String(displayHour) + suffix;
+    return String(displayHour) + suffix;
+  }
 }
 
 String urlencode(const String &str) {
@@ -174,13 +183,14 @@ static void update_clock(lv_timer_t *timer) {
   if (!getLocalTime(&timeinfo)) return;
 
   char buf[16];
-  int hour = timeinfo.tm_hour % 12;
-  int minute = timeinfo.tm_min;
-  const char *ampm = (timeinfo.tm_hour < 12) ? "am" : "pm";
-
-  if(hour == 0) hour = 12;
-  snprintf(buf, sizeof(buf), "%d:%02d%s", hour, minute, ampm);
-
+  if (use_24_hour) {
+    snprintf(buf, sizeof(buf), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+  } else {
+    int hour = timeinfo.tm_hour % 12;
+    if(hour == 0) hour = 12;
+    const char *ampm = (timeinfo.tm_hour < 12) ? "am" : "pm";
+    snprintf(buf, sizeof(buf), "%d:%02d%s", hour, timeinfo.tm_min, ampm);
+  }
   lv_label_set_text(lbl_clock, buf);
 }
 
@@ -229,7 +239,7 @@ void touchscreen_read(lv_indev_t *indev, lv_indev_data_t *data) {
 void setup() {
   Serial.begin(115200);
   delay(100);
-  
+
   TFT_eSPI tft = TFT_eSPI();
   tft.init();
   pinMode(LCD_BACKLIGHT_PIN, OUTPUT);
@@ -255,8 +265,9 @@ void setup() {
   use_fahrenheit = prefs.getBool("useFahrenheit", false);
   location = prefs.getString("location", LOCATION_DEFAULT);
   uint32_t brightness = prefs.getUInt("brightness", 255);
+  use_24_hour = prefs.getBool("use24Hour", false);
   analogWrite(LCD_BACKLIGHT_PIN, brightness);
-  
+
   // Check for Wi-Fi config and request it if not available
   WiFiManager wm;
   wm.setAPCallback(apModeCallback);
@@ -307,7 +318,7 @@ void wifi_splash_screen() {
   lv_label_set_text(lbl,
                     "Wi-Fi Configuration:\n\n"
                     "Please connect your\n"
-                    "phone or laptop to the\n" 
+                    "phone or laptop to the\n"
                     "temporary Wi-Fi access\n point "
                     DEFAULT_CAPTIVE_SSID
                     "\n"
@@ -367,9 +378,9 @@ void create_ui() {
   lv_obj_set_style_radius(box_daily, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_style_border_width(box_daily, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_clear_flag(box_daily, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(box_daily, LV_SCROLLBAR_MODE_OFF); 
-  lv_obj_set_style_pad_all(box_daily, 10, LV_PART_MAIN); 
-  lv_obj_set_style_pad_gap(box_daily, 0, LV_PART_MAIN);  
+  lv_obj_set_scrollbar_mode(box_daily, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_set_style_pad_all(box_daily, 10, LV_PART_MAIN);
+  lv_obj_set_style_pad_gap(box_daily, 0, LV_PART_MAIN);
   lv_obj_add_event_cb(box_daily, daily_cb, LV_EVENT_CLICKED, NULL);
 
   for (int i = 0; i < 7; i++) {
@@ -403,8 +414,8 @@ void create_ui() {
   lv_obj_set_style_radius(box_hourly, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_style_border_width(box_hourly, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_clear_flag(box_hourly, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(box_hourly, LV_SCROLLBAR_MODE_OFF); 
-  lv_obj_set_style_pad_all(box_hourly, 10, LV_PART_MAIN); 
+  lv_obj_set_scrollbar_mode(box_hourly, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_set_style_pad_all(box_hourly, 10, LV_PART_MAIN);
   lv_obj_set_style_pad_gap(box_hourly, 0, LV_PART_MAIN);
   lv_obj_add_event_cb(box_hourly, hourly_cb, LV_EVENT_CLICKED, NULL);
 
@@ -626,7 +637,7 @@ void create_location_dialog() {
 
   lv_obj_t *lbl_cancel = lv_label_create(btn_cancel_loc);
   lv_label_set_text(lbl_cancel, "Cancel");
-  lv_obj_center(lbl_cancel);  
+  lv_obj_center(lbl_cancel);
 }
 
 void create_settings_window() {
@@ -681,15 +692,26 @@ void create_settings_window() {
   lv_obj_align(lbl_u, LV_ALIGN_TOP_LEFT, 0, 48);
 
   unit_switch = lv_switch_create(cont);
-  lv_obj_align_to(unit_switch, lbl_u, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
-
+  lv_obj_align_to(unit_switch, lbl_u, LV_ALIGN_OUT_RIGHT_MID, 6, 0);
   if (use_fahrenheit) {
-    lv_obj_add_state(unit_switch, LV_STATE_CHECKED);  // turn it ON
+    lv_obj_add_state(unit_switch, LV_STATE_CHECKED);
   } else {
-    lv_obj_remove_state(unit_switch, LV_STATE_CHECKED);  // turn it OFF
+    lv_obj_remove_state(unit_switch, LV_STATE_CHECKED);
   }
-
   lv_obj_add_event_cb(unit_switch, settings_event_handler, LV_EVENT_VALUE_CHANGED, NULL);
+
+  lv_obj_t *lbl_24hr = lv_label_create(cont);
+  lv_label_set_text(lbl_24hr, "24hr:");
+  lv_obj_align(lbl_24hr, LV_ALIGN_TOP_LEFT, 120, 48);
+
+  clock_24hr_switch = lv_switch_create(cont);
+  lv_obj_align_to(clock_24hr_switch, lbl_24hr, LV_ALIGN_OUT_RIGHT_MID, 6, 0);
+  if (use_24_hour) {
+    lv_obj_add_state(clock_24hr_switch, LV_STATE_CHECKED);
+  } else {
+    lv_obj_clear_state(clock_24hr_switch, LV_STATE_CHECKED);
+  }
+  lv_obj_add_event_cb(clock_24hr_switch, settings_event_handler, LV_EVENT_VALUE_CHANGED, NULL);
 
   if (!kb) {
     kb = lv_keyboard_create(lv_scr_act());
@@ -729,8 +751,13 @@ static void settings_event_handler(lv_event_t *e) {
     use_fahrenheit = lv_obj_has_state(unit_switch, LV_STATE_CHECKED);
   }
 
+  if (tgt == clock_24hr_switch && code == LV_EVENT_VALUE_CHANGED) {
+    use_24_hour = lv_obj_has_state(clock_24hr_switch, LV_STATE_CHECKED);
+  }
+
   if (tgt == btn_close_obj && code == LV_EVENT_CLICKED) {
     prefs.putBool("useFahrenheit", use_fahrenheit);
+    prefs.putBool("use24Hour", use_24_hour);
 
     lv_keyboard_set_textarea(kb, nullptr);
     lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
