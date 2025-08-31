@@ -31,8 +31,15 @@ LV_FONT_DECLARE(lv_font_montserrat_latin_16);
 LV_FONT_DECLARE(lv_font_montserrat_latin_20);
 LV_FONT_DECLARE(lv_font_montserrat_latin_42);
 
+// Chinese font declarations
+LV_FONT_DECLARE(lv_font_chinese_12);
+LV_FONT_DECLARE(lv_font_chinese_14);
+LV_FONT_DECLARE(lv_font_chinese_16);
+LV_FONT_DECLARE(lv_font_chinese_20);
+LV_FONT_DECLARE(lv_font_chinese_42);
+
 // Language support
-enum Language { LANG_EN = 0, LANG_ES = 1, LANG_DE = 2, LANG_FR = 3 };
+enum Language { LANG_EN = 0, LANG_ES = 1, LANG_DE = 2, LANG_FR = 3, LANG_ZH = 4 };
 static Language current_language = LANG_EN;
 
 struct LocalizedStrings {
@@ -189,33 +196,62 @@ static const LocalizedStrings strings_fr = {
   {"Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"}
 };
 
+static const LocalizedStrings strings_zh = {
+  "--℃", "体感温度", "七日预报", "小时预报",
+  "今天", "现在", "上午", "下午", "中午", "无效时间",
+  "亮度:", "位置:", "使用华氏度:", "24小时制:",
+  "保存", "取消", "关闭", "位置", "重置Wi-Fi",
+  "重置", "更改位置", "Aura设置",
+  "城市", "搜索结果", "输入城市名称",
+  "连接到 'Aura' 热点配置Wi-Fi",
+  "这将清除已保存的Wi-Fi凭据并重启设备。设备重启后，您需要重新配置Wi-Fi凭据。",
+  "语言:",
+  {"周日", "周一", "周二", "周三", "周四", "周五", "周六"}
+};
+
 static const LocalizedStrings* get_strings() {
   switch (current_language) {
     case LANG_ES: return &strings_es;
     case LANG_DE: return &strings_de;
     case LANG_FR: return &strings_fr;
+    case LANG_ZH: return &strings_zh;
     default: return &strings_en;
   }
 }
 
 // Font selection based on language
 const lv_font_t* get_font_12() {
+  if (current_language == LANG_ZH) {
+    return &lv_font_chinese_12;
+  }
   return &lv_font_montserrat_latin_12;
 }
 
 const lv_font_t* get_font_14() {
+  if (current_language == LANG_ZH) {
+    return &lv_font_chinese_14;
+  }
   return &lv_font_montserrat_latin_14;
 }
 
 const lv_font_t* get_font_16() {
+  if (current_language == LANG_ZH) {
+    return &lv_font_chinese_16;
+  }
   return &lv_font_montserrat_latin_16;
 }
 
 const lv_font_t* get_font_20() {
+  if (current_language == LANG_ZH) {
+    return &lv_font_chinese_20;
+  }
   return &lv_font_montserrat_latin_20;
 }
 
 const lv_font_t* get_font_42() {
+  if (current_language == LANG_ZH) {
+    return &lv_font_chinese_42;
+  }
   return &lv_font_montserrat_latin_42;
 }
 
@@ -378,14 +414,23 @@ static void update_clock(lv_timer_t *timer) {
   if (!getLocalTime(&timeinfo)) return;
 
   const LocalizedStrings* strings = get_strings();
-  char buf[16];
+  char buf[64];  // 增加缓冲区大小
+  
+  // 获取星期几
+  const char* weekday = strings->weekdays[timeinfo.tm_wday];
+  
+  // 格式化日期和时间
   if (use_24_hour) {
-    snprintf(buf, sizeof(buf), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+    snprintf(buf, sizeof(buf), "%d-%02d-%02d %s %02d:%02d", 
+             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+             weekday, timeinfo.tm_hour, timeinfo.tm_min);
   } else {
     int hour = timeinfo.tm_hour % 12;
     if(hour == 0) hour = 12;
     const char *ampm = (timeinfo.tm_hour < 12) ? strings->am : strings->pm;
-    snprintf(buf, sizeof(buf), "%d:%02d%s", hour, timeinfo.tm_min, ampm);
+    snprintf(buf, sizeof(buf), "%d-%02d-%02d %s %d:%02d%s",
+             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+             weekday, hour, timeinfo.tm_min, ampm);
   }
   lv_label_set_text(lbl_clock, buf);
 }
@@ -928,7 +973,7 @@ void create_settings_window() {
   lv_obj_align(lbl_lang, LV_ALIGN_TOP_LEFT, 0, 105);
   
   language_dropdown = lv_dropdown_create(cont);
-  lv_dropdown_set_options(language_dropdown, "English\nEspañol\nDeutsch\nFrançais");
+  lv_dropdown_set_options(language_dropdown, "English\nEspañol\nDeutsch\nFrançais\n中文");
   lv_dropdown_set_selected(language_dropdown, current_language);
   lv_obj_set_width(language_dropdown, 120);
   lv_obj_set_style_text_font(language_dropdown, get_font_12(), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -1072,8 +1117,8 @@ void fetch_and_update_weather() {
       Serial.println(utc_offset_seconds);
 
       char unit = use_fahrenheit ? 'F' : 'C';
-      lv_label_set_text_fmt(lbl_today_temp, "%.0f°%c", t_now, unit);
-      lv_label_set_text_fmt(lbl_today_feels_like, "%s %.0f°%c", strings->feels_like_temp, t_ap, unit);
+        lv_label_set_text_fmt(lbl_today_temp, "%.0f°%c", t_now, unit);
+        lv_label_set_text_fmt(lbl_today_feels_like, "%s %.0f°%c", strings->feels_like_temp, t_ap, unit);
       lv_img_set_src(img_today_icon, choose_image(code_now, is_day));
 
       JsonArray times = doc["daily"]["time"].as<JsonArray>();
@@ -1097,8 +1142,8 @@ void fetch_and_update_weather() {
         }
 
         lv_label_set_text_fmt(lbl_daily_day[i], "%s", dayStr);
-        lv_label_set_text_fmt(lbl_daily_high[i], "%.0f°%c", mx, unit);
-        lv_label_set_text_fmt(lbl_daily_low[i], "%.0f°%c", mn, unit);
+          lv_label_set_text_fmt(lbl_daily_high[i], "%.0f°%c", mx, unit);
+          lv_label_set_text_fmt(lbl_daily_low[i], "%.0f°%c", mn, unit);
         lv_img_set_src(img_daily[i], choose_icon(weather_codes[i].as<int>(), (i == 0) ? is_day : 1));
       }
 
@@ -1126,7 +1171,7 @@ void fetch_and_update_weather() {
           lv_label_set_text(lbl_hourly[i], hour_name.c_str());
         }
         lv_label_set_text_fmt(lbl_precipitation_probability[i], "%.0f%%", precipitation_probability);
-        lv_label_set_text_fmt(lbl_hourly_temp[i], "%.0f°%c", temp, unit);
+          lv_label_set_text_fmt(lbl_hourly_temp[i], "%.0f°%c", temp, unit);
         lv_img_set_src(img_hourly[i], choose_icon(hourly_weather_codes[i].as<int>(), hourly_is_day[i].as<int>()));
       }
 
